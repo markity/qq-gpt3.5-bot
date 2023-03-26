@@ -123,6 +123,7 @@ type Task struct {
 	Question string
 	GroupID  int64
 	Nickname string
+	NextUse  time.Time
 }
 
 var Render = `<link href="./markdown.css" rel="stylesheet"></link>
@@ -153,17 +154,6 @@ func Sender() {
 		if len(gotTasks) != 0 {
 			// 处理所有的消息
 			for _, v := range gotTasks {
-				if WaitTable[v.TargetQQ] != nil && time.Now().Before(*WaitTable[v.TargetQQ]) {
-					responseToUser := "你的请求太频繁了, 你的下次请求时间应该大于" + WaitTable[v.TargetQQ].Local().Format("15:04:05")
-					resp, err := http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, v.GroupID, v.TargetQQ)))
-					if err != nil {
-						log.Printf("failed to post to api: %v, retrying\n", err)
-						continue
-					}
-					resp.Body.Close()
-					continue
-				}
-
 				// 发请求
 				gptmsgs := []gptMessage{}
 				gptmsgs = append(gptmsgs, gptMessage{Role: "system", Content: "你是一个得力的编程助手"}, gptMessage{Role: "user", Content: v.Question})
@@ -183,7 +173,7 @@ func Sender() {
 					responseToUser := err.Error()
 					resp, err = http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, v.GroupID, v.TargetQQ)))
 					if err != nil {
-						log.Printf("failed to post to api: %v, retrying\n", err)
+						log.Printf("failed to post to api: %v\n", err)
 						continue
 					}
 					resp.Body.Close()
@@ -194,7 +184,7 @@ func Sender() {
 					responseToUser := "failed to Post to GPT server: code is not 200"
 					resp, err = http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, v.GroupID, v.TargetQQ)))
 					if err != nil {
-						log.Printf("failed to post to api: %v, retrying\n", err)
+						log.Printf("failed to post to api: %v\n", err)
 						continue
 					}
 					resp.Body.Close()
@@ -209,7 +199,7 @@ func Sender() {
 					responseToUser := err.Error()
 					resp, err := http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, v.GroupID, v.TargetQQ)))
 					if err != nil {
-						log.Printf("failed to post to api: %v, retrying\n", err)
+						log.Printf("failed to post to api: %v\n", err)
 						continue
 					}
 					resp.Body.Close()
@@ -225,7 +215,7 @@ func Sender() {
 					responseToUser := err.Error()
 					resp, err := http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, v.GroupID, v.TargetQQ)))
 					if err != nil {
-						log.Printf("failed to post to api: %v, retrying\n", err)
+						log.Printf("failed to post to api: %v\n", err)
 						continue
 					}
 					resp.Body.Close()
@@ -234,8 +224,7 @@ func Sender() {
 
 				responseToUser := gptRespStruct.Choices[0].Msg.Content
 
-				n := time.Now().Add(time.Second * time.Duration(ColdDownTime))
-				output := string(blackfriday.Run([]byte(responseToUser + fmt.Sprintf("\n\n---\n\n提问者: %v(%v)\n\n问题: %v\n\n你的下次使用时间在%v之后", v.Nickname, v.TargetQQ, v.Question, n.Format("15:04:05")))))
+				output := string(blackfriday.Run([]byte(responseToUser + fmt.Sprintf("\n\n---\n\n提问者: %v(%v)\n\n问题: %v\n\n你的下次使用时间在%v之后", v.Nickname, v.TargetQQ, v.Question, v.NextUse.Format("15:04:05")))))
 				tmp := fmt.Sprintf(Render, output)
 
 				result := []byte{}
@@ -251,10 +240,9 @@ func Sender() {
 				// 发送最终的消息
 				resp, err = http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(cq, v.GroupID, v.TargetQQ)))
 				if err != nil {
-					log.Printf("failed to post to api: %v, retrying\n", err)
+					log.Printf("failed to post to api: %v\n", err)
 					continue
 				}
-				WaitTable[v.TargetQQ] = &n
 			}
 			// 清空以及处理的消息
 			gotTasks = nil
@@ -321,12 +309,36 @@ func main() {
 
 		// 分发请求
 		println("分发一个")
+
+		if WaitTable[message.Sender.UserID] != nil && time.Now().Before(*WaitTable[message.Sender.UserID]) {
+			responseToUser := "你的请求太频繁了, 你的次请求时间应该大于" + WaitTable[message.Sender.UserID].Local().Format("15:04:05")
+			resp, err := http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, message.GroupID, message.Sender.UserID)))
+			if err != nil {
+				log.Printf("failed to post to api: %v\n", err)
+				return
+			}
+			resp.Body.Close()
+			return
+		}
+
+		responseToUser := "好的, 正在处理你的请求, 请稍后..."
+		resp, err := http.Post("http://127.0.0.1:5700/send_msg", "application/json", bytes.NewBuffer(GetSendToUserBytes(responseToUser, message.GroupID, message.Sender.UserID)))
+		if err != nil {
+			log.Printf("failed to post to api: %v\n", err)
+			return
+		}
+		resp.Body.Close()
+
+		n := time.Now().Add(time.Second * time.Duration(ColdDownTime))
+		WaitTable[message.Sender.UserID] = &n
+
 		TaskQueueMutex.Lock()
 		TaskQueue = append(TaskQueue, Task{
 			TargetQQ: message.Sender.UserID,
 			Question: userSentToBotMsg,
 			GroupID:  message.GroupID,
 			Nickname: message.Sender.NickName,
+			NextUse:  n,
 		})
 		TaskQueueMutex.Unlock()
 		TaskCond.Signal()
