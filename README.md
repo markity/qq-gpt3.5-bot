@@ -16,7 +16,7 @@ GPT3.5 QQ聊天机器人, 使用gpt-3.5-turbo模型, 支持以下特性:
 0. 装好chrome webdriver, 这个程序需要调用浏览器进行截图
 1. 先装好<a href="https://github.com/Mrs4s/go-cqhttp">go-cqhttp</a>。保证你的命令行上`go-cqhttp`是可用的。
 2. 开启一个命令行窗口, 克隆本仓库, cd到`main.go`的目录下, 编辑`main.go`文件上面的一些配置信息(api key, group id, cold time) , 打`go run main.go`开启服务。
-3. 开启另外一个命令行窗口运行`go-cqhttp`, 此时会生成配置文件config.yml, 用下面的配置文件替代。你需要在下面的`uin`和`password`填写你的QQ信息, 请使用小号。
+3. 开启另外一个命令行窗口运行`go-cqhttp`, 此时会生成配置文件config.yml, 用下面的配置文件替代。你需要在下面的`uin`和`password`填写你的QQ信息, 请使用小号。`address`改为`127.0.0.1:5700`。
 
 ```yml
 # go-cqhttp 默认配置文件
@@ -119,7 +119,7 @@ servers:
   #- pprof: #性能分析服务器
 
   - http: # HTTP 通信设置
-      address: 0.0.0.0:5700 # HTTP监听地址
+      address: 127.0.0.1:5700 # HTTP监听地址, 别忘了改这个
       version: 11     # OneBot协议版本, 支持 11/12
       timeout: 5      # 反向 HTTP 超时时间, 单位秒，<5 时将被忽略
       long-polling:   # 长轮询拓展
