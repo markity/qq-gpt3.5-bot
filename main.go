@@ -25,6 +25,9 @@ var GPTAPIKey = "sk-LVaufkQojm70c3Cht8T9T3BlbkFJdMXXXXXXXXXXXXXXXzMK"
 // 这里填写群号
 var GroupID = 1101101101
 
+// 这里填写QQ号
+var QQNumber = 110110110
+
 // 冷却时间, 单位秒
 var ColdDownTime = 60
 
@@ -301,7 +304,7 @@ func main() {
 		}
 
 		// 过滤掉非at自己的信息
-		if !strings.HasPrefix(message.RawMessage, "[CQ:at,qq=3402002560]") {
+		if !strings.HasPrefix(message.RawMessage, fmt.Sprintf("[CQ:at,qq=%v]", QQNumber)) {
 			return
 		}
 
